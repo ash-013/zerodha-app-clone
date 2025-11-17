@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import '../providers/stock_provider.dart';
+import '../models/stock.dart';
 
 class WatchListPage extends StatefulWidget {
   const WatchListPage({super.key});
@@ -11,6 +15,8 @@ class WatchListPage extends StatefulWidget {
 class _WatchListPageState extends State<WatchListPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final NumberFormat _priceFormat = NumberFormat('#,##0.00');
+  final NumberFormat _percentFormat = NumberFormat('+#,##0.00;-#,##0.00');
 
   @override
   void initState() {
@@ -28,8 +34,14 @@ class _WatchListPageState extends State<WatchListPage>
     Navigator.of(context).pushNamed('/search');
   }
 
+  void _openStockDetail(BuildContext context, Stock stock) {
+    Navigator.of(context).pushNamed('/stock-detail', arguments: stock);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final stockProvider = Provider.of<StockProvider>(context);
+
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
@@ -170,39 +182,153 @@ class _WatchListPageState extends State<WatchListPage>
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              children: [
-                Center(
-                    child: Text('Watchlist 1 Content',
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface))),
-                Center(
-                    child: Text('Watchlist 2 Content',
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface))),
-                Center(
-                    child: Text('Watchlist 3 Content',
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface))),
-                Center(
-                    child: Text('Watchlist 4 Content',
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface))),
-                Center(
-                    child: Text('Watchlist 5 Content',
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface))),
-                Center(
-                    child: Text('Watchlist 6 Content',
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface))),
-                Center(
-                    child: Text('Watchlist 7 Content',
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface))),
-              ],
+              children: List.generate(7, (index) {
+                final watchlistName = 'Watchlist ${index + 1}';
+                final stocks = stockProvider.getWatchlistStocks(watchlistName);
+
+                if (stocks.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.add_circle_outline,
+                          size: 64,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withOpacity(0.3),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No stocks in this watchlist',
+                          style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.5),
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: stocks.length,
+                  itemBuilder: (context, stockIndex) {
+                    final stock = stocks[stockIndex];
+                    return _buildStockTile(context, stock);
+                  },
+                );
+              }),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStockTile(BuildContext context, Stock stock) {
+    final isPositive = stock.change >= 0;
+    final changeColor = isPositive ? Colors.green : Colors.red;
+
+    return InkWell(
+      onTap: () => _openStockDetail(context, stock),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.1),
+              width: 0.5,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Stock symbol and name
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    stock.symbol,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    stock.exchange,
+                    style: TextStyle(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withOpacity(0.5),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Volume/quantity info
+            Expanded(
+              flex: 1,
+              child: Text(
+                '${(stock.volume / 1000).toStringAsFixed(0)}K',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            // Price and change
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _priceFormat.format(stock.lastPrice),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${_percentFormat.format(stock.change)} ',
+                        style: TextStyle(
+                          color: changeColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        '(${_percentFormat.format(stock.changePercent)}%)',
+                        style: TextStyle(
+                          color: changeColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
